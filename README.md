@@ -57,7 +57,7 @@ There are two methods for installation.
 The installation process is identical to the original tortoise-tts repo.
 
 ```shell
-git clone https://github.com/152334H/tortoise-tts-fastest
+git clone https://github.com/hashar7/tortoise-tts-fastest.git
 cd tortoise-tts-fastest
 pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu117
 python3 -m pip install -e .
