@@ -123,8 +123,32 @@ class GPT2InferenceModel(GPT2PreTrainedModel):
                 attention_mask.shape[1] - mel_len, attention_mask.device
             )
 
-        transformer_outputs = self.transformer(
-            inputs_embeds=emb,
+        # transformer = self.transformer(
+        #     # inputs_embeds=emb,
+        #     past_key_values=past_key_values,
+        #     attention_mask=attention_mask,
+        #     token_type_ids=token_type_ids,
+        #     position_ids=position_ids,
+        #     head_mask=head_mask,
+        #     encoder_hidden_states=encoder_hidden_states,
+        #     encoder_attention_mask=encoder_attention_mask,
+        #     use_cache=use_cache,
+        #     output_attentions=output_attentions,
+        #     output_hidden_states=output_hidden_states,
+        #     return_dict=return_dict,
+        # )
+        import sys
+        sys.path.insert(1, "..")
+
+        from torch2trt import torch2trt
+        print("attention_mask type: {}" .format(attention_mask.dtype))
+        print("token_type_ids type: {}" .format(token_type_ids.dtype if token_type_ids is not None else None))
+        print("position_ids type: {}" .format(position_ids.dtype if position_ids is not None else None))
+        print("head_mask type: {}" .format(head_mask.dtype if head_mask is not None else None))
+        print("encoder_attention_mask type: {}" .format(encoder_attention_mask.dtype if encoder_attention_mask is not None else None))
+        transformer_outputs = torch2trt(
+            self.transformer,
+            [emb],
             past_key_values=past_key_values,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
@@ -135,8 +159,9 @@ class GPT2InferenceModel(GPT2PreTrainedModel):
             use_cache=use_cache,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
+            return_dict=return_dict
         )
+            
         hidden_states = transformer_outputs[0]
         lm_logits = self.lm_head(hidden_states)
 
@@ -400,11 +425,12 @@ class UnifiedVoice(nn.Module):
             self.mel_head,
             kv_cache=kv_cache,
         )
-        self.ds_engine = deepspeed.init_inference(model=self.inference_model,  
-                                                  mp_size=1,
-                                                  replace_with_kernel_inject=True,
-                                                  dtype=torch.half)
-        self.ds_engine.module.eval()
+        # self.ds_engine = deepspeed.init_inference(model=self.inference_model,  
+        #                                           mp_size=1,
+        #                                           replace_with_kernel_inject=True,
+        #                                           dtype=torch.half)
+        # self.ds_engine.module.eval()
+        self.ds_engine = self.inference_model
         # self.inference_model = PrunedGPT2InferenceModel(gpt_config, self.gpt, self.mel_pos_embedding, self.mel_embedding, self.final_norm, self.mel_head)
         self.gpt.wte = self.mel_embedding
 
@@ -649,7 +675,7 @@ class UnifiedVoice(nn.Module):
             if max_generate_length is None
             else trunc_index + max_generate_length
         )
-        gen = self.ds_engine.module.generate(
+        gen = self.ds_engine.generate(
             inputs,
             bos_token_id=self.start_mel_token,
             pad_token_id=self.stop_mel_token,
