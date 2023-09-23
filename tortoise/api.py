@@ -671,7 +671,8 @@ class TextToSpeech:
                 for b in tqdm(range(num_batches), disable=not verbose):
                     def to_numpy(tensor):
                         return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
-                    torch.onnx.export(autoregressive, (text_tokens, auto_conditioning), "gpt2.onnx")
+                    autoregressive.speech_conditioning_latent = auto_conditioning
+                    torch.onnx.export(autoregressive, text_tokens, "gpt2.onnx")
                     import onnxruntime
                     ort_session = onnxruntime.InferenceSession("gpt2.onnx", providers = ['CPUExecutionProvider'])
                     ort_inputs = {ort_session.get_inputs()[0].name: to_numpy(text_tokens)}
