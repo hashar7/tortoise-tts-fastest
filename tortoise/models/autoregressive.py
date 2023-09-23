@@ -148,7 +148,7 @@ class GPT2InferenceModel(GPT2PreTrainedModel):
         # print("encoder_attention_mask type: {}" .format(encoder_attention_mask.dtype if encoder_attention_mask is not None else None))
         # transformer_outputs = torch2trt(
         transformer_outputs = self.transformer(
-            inputs_emb=emb,
+            inputs_embeds=emb,
             past_key_values=past_key_values,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
