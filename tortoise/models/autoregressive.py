@@ -9,7 +9,7 @@ from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 from tortoise.models.arch_util import AttentionBlock
 from tortoise.utils.typical_sampling import TypicalLogitsWarper
-import deepspeed
+# import deepspeed
 
 def null_position_embeddings(range, dim):
     return torch.zeros((range.shape[0], range.shape[1], dim), device=range.device)
@@ -140,15 +140,15 @@ class GPT2InferenceModel(GPT2PreTrainedModel):
         import sys
         sys.path.insert(1, "..")
 
-        from torch2trt import torch2trt
-        print("attention_mask type: {}" .format(attention_mask.dtype))
-        print("token_type_ids type: {}" .format(token_type_ids.dtype if token_type_ids is not None else None))
-        print("position_ids type: {}" .format(position_ids.dtype if position_ids is not None else None))
-        print("head_mask type: {}" .format(head_mask.dtype if head_mask is not None else None))
-        print("encoder_attention_mask type: {}" .format(encoder_attention_mask.dtype if encoder_attention_mask is not None else None))
-        transformer_outputs = torch2trt(
-            self.transformer,
-            [emb],
+        # from torch2trt import torch2trt
+        # print("attention_mask type: {}" .format(attention_mask.dtype))
+        # print("token_type_ids type: {}" .format(token_type_ids.dtype if token_type_ids is not None else None))
+        # print("position_ids type: {}" .format(position_ids.dtype if position_ids is not None else None))
+        # print("head_mask type: {}" .format(head_mask.dtype if head_mask is not None else None))
+        # print("encoder_attention_mask type: {}" .format(encoder_attention_mask.dtype if encoder_attention_mask is not None else None))
+        # transformer_outputs = torch2trt(
+        transformer_outputs = self.transformer(
+            inputs_emb=emb,
             past_key_values=past_key_values,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
