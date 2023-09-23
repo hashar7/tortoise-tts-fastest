@@ -669,6 +669,13 @@ class TextToSpeech:
                 device_type="cuda", dtype=torch.float16, enabled=half
             ):
                 for b in tqdm(range(num_batches), disable=not verbose):
+                    def to_numpy(tensor):
+                        return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
+                    torch.onnx.export(autoregressive, (text_tokens, auto_conditioning), "gpt2.onnx")
+                    import onnxruntime
+                    ort_session = onnxruntime.InferenceSession("gpt2.onnx", providers = ['CPUExecutionProvider'])
+                    ort_inputs = {ort_session.get_inputs()[0].name: to_numpy(text_tokens)}
+                    codes = ort_session.run(None, ort_inputs)
                     codes = autoregressive.inference_speech(
                         auto_conditioning,
                         text_tokens,

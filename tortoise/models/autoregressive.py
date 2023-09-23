@@ -343,6 +343,7 @@ class UnifiedVoice(nn.Module):
         """
         super().__init__()
 
+        self.speech_conditioning_latent = None
         self.number_text_tokens = number_text_tokens
         self.start_text_token = (
             number_text_tokens * types if start_text_token is None else start_text_token
@@ -619,10 +620,10 @@ class UnifiedVoice(nn.Module):
         loss_mel = F.cross_entropy(mel_logits, mel_targets.long())
         return loss_text.mean(), loss_mel.mean(), mel_logits
 
-    def inference_speech(
+    def __call__(
         self,
-        speech_conditioning_latent,
         text_inputs,
+        speech_conditioning_latent,
         input_tokens=None,
         num_return_sequences=1,
         max_generate_length=None,
@@ -637,6 +638,8 @@ class UnifiedVoice(nn.Module):
         text_emb = self.text_embedding(text_inputs) + self.text_pos_embedding(
             text_inputs
         )
+
+        speech_conditioning_latent = self.speech_conditioning_latent
 
         conds = speech_conditioning_latent.unsqueeze(1)
         emb = torch.cat([conds, text_emb], dim=1)
@@ -653,6 +656,8 @@ class UnifiedVoice(nn.Module):
         )
         fake_inputs[:, -1] = self.start_mel_token
         trunc_index = fake_inputs.shape[1]
+
+        input_tokens = None
         if input_tokens is None:
             inputs = fake_inputs
         else:
@@ -675,6 +680,8 @@ class UnifiedVoice(nn.Module):
             if max_generate_length is None
             else trunc_index + max_generate_length
         )
+        num_return_sequences = 1
+        typical_mass=.9
         gen = self.ds_engine.generate(
             inputs,
             bos_token_id=self.start_mel_token,
