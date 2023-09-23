@@ -9,6 +9,8 @@ from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 from tortoise.models.arch_util import AttentionBlock
 from tortoise.utils.typical_sampling import TypicalLogitsWarper
+
+
 # import deepspeed
 
 def null_position_embeddings(range, dim):
@@ -111,8 +113,13 @@ class GPT2InferenceModel(GPT2PreTrainedModel):
             text_emb = self.embeddings(text_inputs)
             text_emb = text_emb + self.text_pos_embedding(text_emb)
             if self.cached_mel_emb.shape[0] != text_emb.shape[0]:
+                print(text_emb.get_device())
+                print(self.cached_mel_emb.get_device())
+                print( text_emb.shape[0] // self.cached_mel_emb.shape[0])
+                tmp =  text_emb.shape[0] // self.cached_mel_emb.shape[0]
+                tmp = tmp.to('cuda:0')
                 mel_emb = self.cached_mel_emb.repeat_interleave(
-                    text_emb.shape[0] // self.cached_mel_emb.shape[0], 0
+                    tmp, 0
                 )
             else:  # this outcome only occurs once per loop in most cases
                 mel_emb = self.cached_mel_emb
@@ -344,7 +351,14 @@ class UnifiedVoice(nn.Module):
         super().__init__()
 
         self.speech_conditioning_latent = None
+        self.max_generate_length = None
         self.number_text_tokens = number_text_tokens
+        self.do_sample = True
+        self.top_p = None
+        self.repetition_penalty = None
+        self.temperature = None
+        self.length_penalty = None
+        
         self.start_text_token = (
             number_text_tokens * types if start_text_token is None else start_text_token
         )
@@ -670,6 +684,8 @@ class UnifiedVoice(nn.Module):
             )
             inputs = torch.cat([fake_inputs, input_tokens], dim=1)
 
+        
+        
         logits_processor = (
             LogitsProcessorList([TypicalLogitsWarper(mass=typical_mass)])
             if typical_sampling
@@ -680,8 +696,9 @@ class UnifiedVoice(nn.Module):
             if max_generate_length is None
             else trunc_index + max_generate_length
         )
-        num_return_sequences = 1
+        num_return_sequences = 4
         typical_mass=.9
+        print(hf_generate_kwargs)
         gen = self.ds_engine.generate(
             inputs,
             bos_token_id=self.start_mel_token,
@@ -690,6 +707,11 @@ class UnifiedVoice(nn.Module):
             max_length=max_length,
             logits_processor=logits_processor,
             num_return_sequences=num_return_sequences,
+            do_sample = self.do_sample,
+            top_p = self.top_p,
+            temperature = self.temperature,
+            length_penalty = self.length_penalty,
+            repetition_penalty = self.repetition_penalty,
             **hf_generate_kwargs
         )
         return gen[:, trunc_index:]

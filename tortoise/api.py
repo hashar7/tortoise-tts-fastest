@@ -671,12 +671,24 @@ class TextToSpeech:
                 for b in tqdm(range(num_batches), disable=not verbose):
                     def to_numpy(tensor):
                         return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
+                    autoregressive.do_sample = True
+                    autoregressive.length_penalty = length_penalty
+                    autoregressive.top_p = top_p
+                    autoregressive.repetition_penalty = repetition_penalty
+                    autoregressive.temperature = temperature
                     autoregressive.speech_conditioning_latent = auto_conditioning
+                    autoregressive.max_generate_length = max_mel_tokens
                     torch.onnx.export(autoregressive, text_tokens, "gpt2.onnx")
                     import onnxruntime
-                    ort_session = onnxruntime.InferenceSession("gpt2.onnx", providers = ['CPUExecutionProvider'])
+                    from optimum.onnxruntime import ORTModel
+
+                    ort_session = onnxruntime.InferenceSession("gpt2.onnx", providers = ['CUDAExecutionProvider'])
                     ort_inputs = {ort_session.get_inputs()[0].name: to_numpy(text_tokens)}
-                    codes = ort_session.run(None, ort_inputs)
+                    # codes = ort_session.run(None, ort_inputs)[0]
+
+                    model = ORTModel.from_pretrained("gpt2.onnx")
+                    codes = model(text_tokens)
+                    
                     # codes = autoregressive.inference_speech(
                     #     auto_conditioning,
                     #     text_tokens,
@@ -690,7 +702,7 @@ class TextToSpeech:
                     #     **hf_generate_kwargs,
                     # )
                     padding_needed = max_mel_tokens - codes.shape[1]
-                    codes = F.pad(codes, (0, padding_needed), value=stop_mel_token)
+                    codes = F.pad(torch.from_numpy(codes).to(self.device), (0, padding_needed), value=stop_mel_token)
                     samples.append(codes)
             self.autoregressive_batch_size = (
                 orig_batch_size  # in the case of single_sample
@@ -752,7 +764,7 @@ class TextToSpeech:
             ) as autoregressive, torch.autocast(
                 device_type="cuda", dtype=torch.float16, enabled=half
             ):
-                best_latents = autoregressive(
+                best_latents = autoregressive.forward(
                     auto_conditioning.repeat(k, 1),
                     text_tokens.repeat(k, 1),
                     torch.tensor([text_tokens.shape[-1]], device=text_tokens.device),
