@@ -671,23 +671,24 @@ class TextToSpeech:
                 for b in tqdm(range(num_batches), disable=not verbose):
                     def to_numpy(tensor):
                         return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
-                    torch.onnx.export(autoregressive, (text_tokens, auto_conditioning), "gpt2.onnx")
+                    autoregressive.speech_conditioning_latent = auto_conditioning
+                    torch.onnx.export(autoregressive, text_tokens, "gpt2.onnx")
                     import onnxruntime
                     ort_session = onnxruntime.InferenceSession("gpt2.onnx", providers = ['CPUExecutionProvider'])
                     ort_inputs = {ort_session.get_inputs()[0].name: to_numpy(text_tokens)}
                     codes = ort_session.run(None, ort_inputs)
-                    codes = autoregressive.inference_speech(
-                        auto_conditioning,
-                        text_tokens,
-                        do_sample=True,
-                        top_p=top_p,
-                        temperature=temperature,
-                        num_return_sequences=self.autoregressive_batch_size,
-                        length_penalty=length_penalty,
-                        repetition_penalty=repetition_penalty,
-                        max_generate_length=max_mel_tokens,
-                        **hf_generate_kwargs,
-                    )
+                    # codes = autoregressive.inference_speech(
+                    #     auto_conditioning,
+                    #     text_tokens,
+                    #     do_sample=True,
+                    #     top_p=top_p,
+                    #     temperature=temperature,
+                    #     num_return_sequences=self.autoregressive_batch_size,
+                    #     length_penalty=length_penalty,
+                    #     repetition_penalty=repetition_penalty,
+                    #     max_generate_length=max_mel_tokens,
+                    #     **hf_generate_kwargs,
+                    # )
                     padding_needed = max_mel_tokens - codes.shape[1]
                     codes = F.pad(codes, (0, padding_needed), value=stop_mel_token)
                     samples.append(codes)
